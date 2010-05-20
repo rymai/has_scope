@@ -101,8 +101,13 @@ module HasScope
   #     end
   #   end
   #
-  def apply_scopes(target, hash=params)
+  def apply_scopes(target, hash=params, *args)
     return target unless scopes_configuration
+
+    global_options = args.extract_options!
+    global_options.symbolize_keys!
+    global_options.assert_valid_keys(:default)
+    no_scope_called = true
 
     self.scopes_configuration.each do |scope, options|
       next unless apply_scope_to_action?(options)
@@ -110,9 +115,6 @@ module HasScope
 
       if hash.key?(key)
         value, call_scope = hash[key], true
-      elsif options.key?(:default)
-        value, call_scope = options[:default], true
-        value = value.call(self) if value.is_a?(Proc)
       end
 
       value = parse_value(options[:type], key, value)
@@ -120,6 +122,40 @@ module HasScope
       if call_scope && (value.present? || options[:allow_blank])
         current_scopes[key] = value
         target = call_scope_by_type(options[:type], scope, target, value, options)
+        no_scope_called = false
+      end
+    end
+
+    # Handle the global :default scope => apply_scopes(relation, :default => { :by_color => 'red' })
+    if no_scope_called && global_options[:default]
+      global_options[:default].each do |scope, parameters|
+        if scopes_configuration.key?(scope) # it's a valid scope
+          options = scopes_configuration[scope]
+          key = options[:as]
+
+          value = parse_value(options[:type], key, parameters)
+
+          if value.present? || options[:allow_blank]
+            current_scopes[key] = value
+            target = call_scope_by_type(options[:type], scope, target, value, options)
+            no_scope_called = false
+          end
+        end
+      end
+    end
+
+    if no_scope_called # call the default scopes defined at the has_scope level
+      self.scopes_configuration.select{ |s, o| o.key? :default }.each do |scope, options|
+        next unless apply_scope_to_action?(options)
+        key = options[:as]
+
+        value = options[:default].is_a?(Proc) ? options[:default].call(self) : options[:default]
+        value = parse_value(options[:type], key, value)
+
+        if (value.present? || options[:allow_blank])
+          current_scopes[key] = value
+          target = call_scope_by_type(options[:type], scope, target, value, options)
+        end
       end
     end
 
@@ -167,14 +203,14 @@ module HasScope
   # method, or string evals to the expected value.
   def applicable?(string_proc_or_symbol, expected) #:nodoc:
     case string_proc_or_symbol
-      when String
-        eval(string_proc_or_symbol) == expected
-      when Proc
-        string_proc_or_symbol.call(self) == expected
-      when Symbol
-        send(string_proc_or_symbol) == expected
-      else
-        true
+    when String
+      eval(string_proc_or_symbol) == expected
+    when Proc
+      string_proc_or_symbol.call(self) == expected
+    when Symbol
+      send(string_proc_or_symbol) == expected
+    else
+      true
     end
   end
 

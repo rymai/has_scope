@@ -46,17 +46,13 @@ In the last case, it would return: { :featured => true, :by_degree => "phd" }.
 
 == Installation
 
-HasScope is available as gem on Gemcutter, so just run the following:
+Rails3 way only:
 
-    sudo gem install has_scope
+    gem 'has_scope', :git => 'git://github.com/rymai/has_scope.git'
 
-If you want it as plugin, just do:
+== <tt>has_scope</tt> options
 
-    script/plugin install git://github.com/plataformatec/has_scope.git
-
-== Options
-
-HasScope supports several options:
+<tt>has_scope</tt> supports several options:
 
 * <tt>:type</tt> - Checks the type of the parameter sent. If set to :boolean it just calls the named scope, without any argument. By default, it does not allow hashes or arrays to be given, except if type :hash or :array are set.
 
@@ -72,9 +68,40 @@ HasScope supports several options:
 
 * <tt>:unless</tt> - Specifies a method, proc or string to call to determine if the scope should NOT apply.
 
-* <tt>:default</tt> - Default value for the scope. Whenever supplied the scope is always called.
+* <tt>:default</tt> - Declares a scope as a default and give it a default value. Default scopes are only called if no scope is given explicitly and no global default scope is given in <tt>apply_scopes</tt>.
 
 * <tt>:allow_blank</tt> - Blank values are not sent to scopes by default. Set to true to overwrite.
+
+== Global default scope
+
+You can also set a global default scope when calling <tt>apply_scopes</tt>, activated when no scope is explicitly given in the params.
+This global default scope will override every default scope declared with the <tt>:default</tt> options of <tt>has_scope</tt> (see below).
+
+Just call apply_scopes like this:
+
+  def index
+    @flowers = apply_scopes(Flower, params, :default => { :by_color => 'red' }).all
+  end
+
+Then for each request:
+
+  /flowers
+  #=> no explicit scope given, calls the by_color('red') default scope
+
+  /flowers?by_size=tiny
+  #=> explicit scope given, calls only by_size('tiny') scope
+
+  /flowers?by_color=blue
+  #=> as a normal explicit given scope, calls only the scope by_color('blue')
+
+<u>Note:</u> You have to give the <tt>apply_scopes</tt> an explicit second parameter (usually <tt>params</tt>) in order to have the :default scope to work well.
+
+== Priority order of default scopes
+
+The priority order for default scopes is as follow:
+  
+  1. Global default scopes: called if no explicit scopes given
+  2. Individual default scopes: called if no explicit scopes given and no global default scopes given
 
 == Block usage
 
@@ -92,10 +119,18 @@ When used with booleans, it just receives two arguments and is just invoked if t
     scope.not_voted_by(controller.current_user.id) 
   end
 
+== Contributions
+
+Rémy Coutable - http://github.com/rymai
+
+* Global default scopes.
+
+* Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to be has a real "default" behavior and not an "always" behavior.
+
 == Bugs and Feedback
 
 If you discover any bugs or want to drop a line, feel free to create an issue on GitHub.
 
-http://github.com/plataformatec/has_scope/issues
+http://github.com/rymai/has_scope/issues
 
 MIT License. Copyright 2009 Plataforma Tecnologia. http://blog.plataformatec.com.br

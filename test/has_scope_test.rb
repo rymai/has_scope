@@ -35,17 +35,17 @@ class TreesController < ApplicationController
   alias :edit :show
 
   protected
-    def restrict_to_only_tall_trees?
-      true
-    end
+  def restrict_to_only_tall_trees?
+    true
+  end
 
-    def show_all_colors?
-      false
-    end
-    
-    def default_render
-      render :text => action_name
-    end
+  def show_all_colors?
+    false
+  end
+
+  def default_render
+    render :text => action_name
+  end
 end
 
 class HasScopeTest < ActionController::TestCase
@@ -189,6 +189,14 @@ class HasScopeTest < ActionController::TestCase
     assert_equal({ :shadown_range => '20' }, current_scopes)
   end
 
+  def test_default_scope_should_not_be_called_if_any_scope_is_given
+    Tree.expects(:color).with('red').returns(Tree).in_sequence
+    Tree.expects(:find).with('42').returns(mock_tree).in_sequence
+    get :edit, :id => '42', :color => 'red'
+    assert_equal(mock_tree, assigns(:tree))
+    assert_equal({ :color => 'red' }, current_scopes)
+  end
+
   def test_scope_with_different_key
     Tree.expects(:root_type).with('outside').returns(Tree).in_sequence
     Tree.expects(:find).with('42').returns(mock_tree).in_sequence
@@ -204,32 +212,93 @@ class HasScopeTest < ActionController::TestCase
     get :new
     assert_equal(mock_tree, assigns(:tree))
     assert_equal({ :calculate_height => 100 }, current_scopes)
-   end
+  end
 
-   def test_scope_with_boolean_block
-     Tree.expects(:only_really_short!).with(@controller.object_id).returns(Tree)
-     Tree.expects(:all).returns([mock_tree])
-     get :index, :only_short => 'true'
-     assert_equal([mock_tree], assigns(:trees))
-     assert_equal({ :only_short => true }, current_scopes)
-   end
+  def test_scope_with_boolean_block
+    Tree.expects(:only_really_short!).with(@controller.object_id).returns(Tree)
+    Tree.expects(:all).returns([mock_tree])
+    get :index, :only_short => 'true'
+    assert_equal([mock_tree], assigns(:trees))
+    assert_equal({ :only_short => true }, current_scopes)
+  end
 
-   def test_scope_with_other_block_types
-     Tree.expects(:by_given_category).with(@controller.object_id, 'for_id').returns(Tree)
-     Tree.expects(:all).returns([mock_tree])
-     get :index, :by_category => 'for'
-     assert_equal([mock_tree], assigns(:trees))
-     assert_equal({ :by_category => 'for' }, current_scopes)
-   end
+  def test_scope_with_other_block_types
+    Tree.expects(:by_given_category).with(@controller.object_id, 'for_id').returns(Tree)
+    Tree.expects(:all).returns([mock_tree])
+    get :index, :by_category => 'for'
+    assert_equal([mock_tree], assigns(:trees))
+    assert_equal({ :by_category => 'for' }, current_scopes)
+  end
 
   protected
 
-    def mock_tree(stubs={})
-      @mock_tree ||= mock(stubs)
-    end
+  def mock_tree(stubs={})
+    @mock_tree ||= mock(stubs)
+  end
 
-    def current_scopes
-      @controller.send :current_scopes
-    end
+  def current_scopes
+    @controller.send :current_scopes
+  end
 end
 
+class Flower
+end
+
+class FlowersController < ApplicationController
+  has_scope :by_color
+  has_scope :by_foo
+  has_scope :shadown_range, :default => 10, :only => [ :show ]
+
+  def index
+    @flowers = apply_scopes(Flower, params, :default => { :by_color => 'red' }).all
+  end
+
+  def show
+    @flower = apply_scopes(Flower).find(params[:id])
+  end
+
+  protected
+  def default_render
+    render :text => action_name
+  end
+
+end
+
+class HasDefaultScopeTest < ActionController::TestCase
+  tests FlowersController
+
+  def test_global_default_scope_is_called_if_no_current_scope_is_given
+    Flower.expects(:by_color).with('red').returns(Flower).in_sequence
+    Flower.expects(:all).returns([mock_flower]).in_sequence
+    get :index # without scope, should apply the default scope
+    assert_equal([mock_flower], assigns(:flowers))
+    assert_equal({ :by_color => 'red' }, current_scopes)
+  end
+
+  def test_global_default_scope_is_not_called_if_a_current_scope_is_given
+    Flower.expects(:by_foo).with('bar').returns(Flower).in_sequence
+    Flower.expects(:all).returns([mock_flower]).in_sequence
+    get :index, :by_foo => 'bar' # without a given scope, should not apply the default scope
+    assert_equal([mock_flower], assigns(:flowers))
+    assert_equal({ :by_foo => 'bar' }, current_scopes)
+  end
+
+  def test_scope_with_default_value_are_called_when_no_scopes_given_and_no_global_default_scope_are_given
+    Flower.expects(:shadown_range).with(10).returns(Flower).in_sequence
+    Flower.expects(:find).with('42').returns(mock_flower).in_sequence
+    get :show, :id => '42'
+    assert_equal(mock_flower, assigns(:flower))
+    assert_equal({ :shadown_range => 10 }, current_scopes)
+  end
+
+  protected
+
+  def mock_flower(stubs={})
+    @mock_flower ||= mock(stubs)
+  end
+
+  def current_scopes
+    @controller.send :current_scopes
+  end
+
+end
