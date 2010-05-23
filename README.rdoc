@@ -118,7 +118,7 @@ Rémy Coutable - http://github.com/rymai
 
 * Added <tt>apply_scopes</tt>'s <tt>:default</tt> option.
 
-* Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to be has a real "default" behavior and not an "always" behavior.
+* Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to has a real "default" behavior and not an "always" behavior.
 
 * Added <tt>has_scope</tt>'s <tt>:always</tt> option allowing the same behavior as the former <tt>has_scope</tt>'s <tt>:default</tt> option.
 
