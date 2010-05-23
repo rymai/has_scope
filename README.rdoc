@@ -12,7 +12,7 @@ You can use those named scopes as filters by declaring them on your controller:
 
   class GraduationsController < ApplicationController
     has_scope :featured, :type => :boolean
-    has_scope :by_degree
+    has_scope :by_degree, :default => 'foo', :always => true
   end
 
 Now, if you want to apply them to an specific resource, you just need to call <tt>apply_scopes</tt>:
@@ -46,7 +46,7 @@ In the last case, it would return: { :featured => true, :by_degree => "phd" }.
 
 == Installation
 
-Rails3 way only:
+=== Rails 3
 
     gem 'has_scope', :git => 'git://github.com/rymai/has_scope.git'
 
@@ -68,40 +68,33 @@ Rails3 way only:
 
 * <tt>:unless</tt> - Specifies a method, proc or string to call to determine if the scope should NOT apply.
 
-* <tt>:default</tt> - Declares a scope as a default and give it a default value. Default scopes are only called if no scope is given explicitly and no global default scope is given in <tt>apply_scopes</tt>.
+* <tt>:default</tt> - Default value for the scope. Default scope is called only if no other scope is given, to always call the default scope, see the <tt>:always</tt> option.
+
+* <tt>:always</tt> - Whenever supplied, the scope is always called (with the default or the given value).
 
 * <tt>:allow_blank</tt> - Blank values are not sent to scopes by default. Set to true to overwrite.
 
-== Global default scope
+== Default scope at the <tt>apply_scopes</tt> level
 
-You can also set a global default scope when calling <tt>apply_scopes</tt>, activated when no scope is explicitly given in the params.
+You can also set default scopes at the <tt>apply_scopes</tt> level, overriding any scopes with the <tt>:default</tt> option and called when no scope is explicitly given in the params.
 This global default scope will override every default scope declared with the <tt>:default</tt> options of <tt>has_scope</tt> (see below).
 
-Just call apply_scopes like this:
+Just call <tt>apply_scopes</tt> like this:
 
   def index
-    @flowers = apply_scopes(Flower, params, :default => { :by_color => 'red' }).all
+    @flowers = apply_scopes(Flower, :default => { :color => 'red', :size => 'huge' }).all
   end
 
 Then for each request:
 
   /flowers
-  #=> no explicit scope given, calls the by_color('red') default scope
+  #=> no explicit scope given, calls the color('red') and size('huge') default scopes
 
-  /flowers?by_size=tiny
-  #=> explicit scope given, calls only by_size('tiny') scope
+  /flowers?size=tiny
+  #=> explicit scope given, calls given size('tiny') scope and color('red') default scope
 
-  /flowers?by_color=blue
-  #=> as a normal explicit given scope, calls only the scope by_color('blue')
-
-<u>Note:</u> You have to give the <tt>apply_scopes</tt> an explicit second parameter (usually <tt>params</tt>) in order to have the :default scope to work well.
-
-== Priority order of default scopes
-
-The priority order for default scopes is as follow:
-  
-  1. Global default scopes: called if no explicit scopes given
-  2. Individual default scopes: called if no explicit scopes given and no global default scopes given
+  /flowers?color=blue
+  #=> calls color('blue') (as a normal explicit given scope) scope and size('huge') default scope
 
 == Block usage
 
@@ -123,9 +116,11 @@ When used with booleans, it just receives two arguments and is just invoked if t
 
 Rémy Coutable - http://github.com/rymai
 
-* Global default scopes.
+* Added <tt>apply_scopes</tt>'s <tt>:default</tt> option.
 
 * Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to be has a real "default" behavior and not an "always" behavior.
+
+* Added <tt>has_scope</tt>'s <tt>:always</tt> option allowing the same behavior as the former <tt>has_scope</tt>'s <tt>:default</tt> option.
 
 == Bugs and Feedback
 

@@ -7,6 +7,8 @@ class TreesController < ApplicationController
   has_scope :color, :unless => :show_all_colors?
   has_scope :only_tall, :type => :boolean, :only => :index, :if => :restrict_to_only_tall_trees?
   has_scope :shadown_range, :default => 10, :except => [ :index, :show, :new ]
+  has_scope :always_shadown_range, :default => 20, :always => true, :only => :other_edit
+  has_scope :ignored_always_shadown_range, :always => true, :only => :another_edit
   has_scope :root_type, :as => :root, :allow_blank => true
   has_scope :calculate_height, :default => proc {|c| c.session[:height] || 20 }, :only => :new
   has_scope :paginate, :type => :hash
@@ -33,6 +35,8 @@ class TreesController < ApplicationController
     @tree = apply_scopes(Tree).find(params[:id])
   end
   alias :edit :show
+  alias :other_edit :show
+  alias :another_edit :show
 
   protected
   def restrict_to_only_tall_trees?
@@ -196,6 +200,23 @@ class HasScopeTest < ActionController::TestCase
     assert_equal(mock_tree, assigns(:tree))
     assert_equal({ :color => 'red' }, current_scopes)
   end
+  
+  def test_default_scope_should_not_be_called_if_any_scope_is_given_unless_scope_has_the_always_options
+    Tree.expects(:always_shadown_range).with(20).returns(Tree).in_sequence
+    Tree.expects(:color).with('red').returns(Tree).in_sequence
+    Tree.expects(:find).with('42').returns(mock_tree).in_sequence
+    get :other_edit, :id => '42', :color => 'red'
+    assert_equal(mock_tree, assigns(:tree))
+    assert_equal({ :always_shadown_range => 20, :color => 'red' }, current_scopes)
+  end
+
+  def test_always_option_should_be_ignored_if_no_default_value_is_given
+    Tree.expects(:color).with('red').returns(Tree).in_sequence
+    Tree.expects(:find).with('42').returns(mock_tree).in_sequence
+    get :another_edit, :id => '42', :color => 'red'
+    assert_equal(mock_tree, assigns(:tree))
+    assert_equal({ :color => 'red' }, current_scopes)
+  end
 
   def test_scope_with_different_key
     Tree.expects(:root_type).with('outside').returns(Tree).in_sequence
@@ -245,16 +266,21 @@ class Flower
 end
 
 class FlowersController < ApplicationController
-  has_scope :by_color
-  has_scope :by_foo
-  has_scope :shadown_range, :default => 10, :only => [ :show ]
+  has_scope :color
+  has_scope :size
+  has_scope :shadown_range, :default => 10, :only => :show
 
   def index
-    @flowers = apply_scopes(Flower, params, :default => { :by_color => 'red' }).all
+    @flowers = apply_scopes(Flower, :default => { :color => 'red', :size => 'huge' }).all
   end
 
   def show
-    @flower = apply_scopes(Flower).find(params[:id])
+    @flower = apply_scopes(Flower, :hash => params).find(params[:id])
+  end
+  
+  def edit
+    # Deprecated
+    @flower = apply_scopes(Flower, { :color => 'red' }).find(params[:id])
   end
 
   protected
@@ -268,19 +294,20 @@ class HasDefaultScopeTest < ActionController::TestCase
   tests FlowersController
 
   def test_global_default_scope_is_called_if_no_current_scope_is_given
-    Flower.expects(:by_color).with('red').returns(Flower).in_sequence
+    Flower.expects(:color).with('red').returns(Flower).in_sequence
+    Flower.expects(:size).with('huge').returns(Flower).in_sequence
     Flower.expects(:all).returns([mock_flower]).in_sequence
     get :index # without scope, should apply the default scope
     assert_equal([mock_flower], assigns(:flowers))
-    assert_equal({ :by_color => 'red' }, current_scopes)
+    assert_equal({ :color => 'red', :size => 'huge' }, current_scopes)
   end
 
   def test_global_default_scope_is_not_called_if_a_current_scope_is_given
-    Flower.expects(:by_foo).with('bar').returns(Flower).in_sequence
+    Flower.expects(:size).with('tiny').returns(Flower).in_sequence
     Flower.expects(:all).returns([mock_flower]).in_sequence
-    get :index, :by_foo => 'bar' # without a given scope, should not apply the default scope
+    get :index, :size => 'tiny' # without a given scope, should not apply the default scope
     assert_equal([mock_flower], assigns(:flowers))
-    assert_equal({ :by_foo => 'bar' }, current_scopes)
+    assert_equal({ :size => 'tiny' }, current_scopes)
   end
 
   def test_scope_with_default_value_are_called_when_no_scopes_given_and_no_global_default_scope_are_given
@@ -289,6 +316,14 @@ class HasDefaultScopeTest < ActionController::TestCase
     get :show, :id => '42'
     assert_equal(mock_flower, assigns(:flower))
     assert_equal({ :shadown_range => 10 }, current_scopes)
+  end
+
+  def test_deprecated_call_of_apply_scopes_should_still_work
+    Flower.expects(:color).with('red').returns(Flower).in_sequence
+    Flower.expects(:find).with('42').returns(mock_flower).in_sequence
+    get :edit, :id => '42'
+    assert_equal(mock_flower, assigns(:flower))
+    assert_equal({ :color => 'red' }, current_scopes)
   end
 
   protected

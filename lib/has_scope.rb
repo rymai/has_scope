@@ -13,6 +13,7 @@ module HasScope
       extend ClassMethods
       helper_method :current_scopes
       class_inheritable_hash :scopes_configuration, :instance_writer => false
+      class_inheritable_array :default_scopes, :instance_writer => false
     end
   end
 
@@ -42,8 +43,10 @@ module HasScope
     # * <tt>:unless</tt> - Specifies a method, proc or string to call to determine
     #                      if the scope should NOT apply.
     #
-    # * <tt>:default</tt> - Default value for the scope. Whenever supplied the scope
-    #                       is always called.
+    # * <tt>:default</tt> - Default value for the scope. Default scope is called only if no
+    #                       other scope is given, to always call the default scope, see the <tt>:always</tt> option.
+    #
+    # * <tt>:always</tt> - Whenever supplied, the scope is always called (with the default or the given value).
     #
     # * <tt>:allow_blank</tt> - Blank values are not sent to scopes by default. Set to true to overwrite.
     #
@@ -64,7 +67,7 @@ module HasScope
     def has_scope(*scopes, &block)
       options = scopes.extract_options!
       options.symbolize_keys!
-      options.assert_valid_keys(:type, :only, :except, :if, :unless, :default, :as, :using, :allow_blank)
+      options.assert_valid_keys(:type, :only, :except, :if, :unless, :default, :always, :as, :using, :allow_blank)
 
       if options.key?(:using)
         if options.key?(:type) && options[:type] != :hash
@@ -80,10 +83,12 @@ module HasScope
       options[:except] = Array(options[:except])
 
       self.scopes_configuration ||= {}
+      self.default_scopes       ||= []
 
       scopes.each do |scope|
         self.scopes_configuration[scope] ||= { :as => scope, :type => :default, :block => block }
         self.scopes_configuration[scope].merge!(options)
+        self.default_scopes << scope if options[:default]
       end
     end
   end
@@ -101,12 +106,39 @@ module HasScope
   #     end
   #   end
   #
-  def apply_scopes(target, hash=params, *args)
+  # == Options
+  #
+  # * <tt>:hash</tt> - If not specified, it'll be the params hash. You can override it, but in most cases you won't need it.
+  #
+  # * <tt>:default</tt> - You can set the default scopes for this particular call of apply_scopes
+  #                       (if you want more global default, use the <tt>:default</tt> option of <tt>has_scope</tt>).
+  #                       It will override any <tt>:default</tt> options set at the <tt>has_scope</tt> level.
+  #                       For example: apply_scopes(relation, :default => { :color => 'red', :size => 'huge' })
+  #
+  def apply_scopes(target, *args)
     return target unless scopes_configuration
 
-    global_options = args.extract_options!
-    global_options.symbolize_keys!
-    global_options.assert_valid_keys(:default)
+    call_options = args.extract_options!
+    call_options.symbolize_keys!
+    begin
+      call_options.assert_valid_keys(:hash, :default)
+    rescue
+      message = <<-NOTICE
+      *****************************************************************
+      DEPRECATION WARNING: you are using deprecated behaviour that will
+      be removed in the future.
+
+      #{caller(0)[2]}
+
+      * apply_scopes(target, hash) is deprecated.
+      * please use apply_scopes(target, :hash => hash) instead.
+      *****************************************************************"
+      NOTICE
+      Kernel.warn(message)
+      default = call_options.key?(:default) ? call_options.delete(:default) : {}
+      return apply_scopes(target, :hash => call_options, :default => default)
+    end
+    hash            = call_options[:hash] ? call_options[:hash] : params
     no_scope_called = true
 
     self.scopes_configuration.each do |scope, options|
@@ -115,46 +147,51 @@ module HasScope
 
       if hash.key?(key)
         value, call_scope = hash[key], true
+      elsif options.key?(:always)
+        value, call_scope = options[:default], true
+        value             = value.call(self) if value.is_a?(Proc)
       end
 
       value = parse_value(options[:type], key, value)
 
       if call_scope && (value.present? || options[:allow_blank])
         current_scopes[key] = value
-        target = call_scope_by_type(options[:type], scope, target, value, options)
-        no_scope_called = false
+        target              = call_scope_by_type(options[:type], scope, target, value, options)
+        no_scope_called     = false
       end
     end
 
-    # Handle the global :default scope => apply_scopes(relation, :default => { :by_color => 'red' })
-    if no_scope_called && global_options[:default]
-      global_options[:default].each do |scope, parameters|
+    # Handle the :default option
+    if no_scope_called && call_options[:default]
+      call_options[:default].each do |scope, parameters|
         if scopes_configuration.key?(scope) # it's a valid scope
           options = scopes_configuration[scope]
-          key = options[:as]
+          key     = options[:as]
 
           value = parse_value(options[:type], key, parameters)
 
           if value.present? || options[:allow_blank]
             current_scopes[key] = value
-            target = call_scope_by_type(options[:type], scope, target, value, options)
-            no_scope_called = false
+            target              = call_scope_by_type(options[:type], scope, target, value, options)
+            no_scope_called     = false
           end
         end
       end
     end
 
-    if no_scope_called # call the default scopes defined at the has_scope level
-      self.scopes_configuration.select{ |s, o| o.key? :default }.each do |scope, options|
+    # Handle the default scopes defined at the has_scope level
+    if no_scope_called
+      self.default_scopes.each do |scope|
+        options = self.scopes_configuration[scope]
         next unless apply_scope_to_action?(options)
-        key = options[:as]
-
-        value = options[:default].is_a?(Proc) ? options[:default].call(self) : options[:default]
+        key   = options[:as]
+        value = options[:default]
+        value = value.call(self) if value.is_a?(Proc)
         value = parse_value(options[:type], key, value)
 
         if (value.present? || options[:allow_blank])
           current_scopes[key] = value
-          target = call_scope_by_type(options[:type], scope, target, value, options)
+          target              = call_scope_by_type(options[:type], scope, target, value, options)
         end
       end
     end
