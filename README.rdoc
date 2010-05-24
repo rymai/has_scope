@@ -131,6 +131,6 @@ Rémy Coutable - http://github.com/rymai
 
 If you discover any bugs or want to drop a line, feel free to create an issue on GitHub.
 
-http://github.com/rymai/has_scope/issues
+http://github.com/plataformatec/has_scope/issues
 
 MIT License. Copyright 2009 Plataforma Tecnologia. http://blog.plataformatec.com.br
