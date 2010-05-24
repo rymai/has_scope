@@ -48,7 +48,7 @@ In the last case, it would return: { :featured => true, :by_degree => "phd" }.
 
 === Rails 3
 
-    gem 'has_scope', :git => 'git://github.com/rymai/has_scope.git'
+  gem 'has_scope', :git => 'git://github.com/rymai/has_scope.git'
 
 == <tt>has_scope</tt> options
 
@@ -74,10 +74,13 @@ In the last case, it would return: { :featured => true, :by_degree => "phd" }.
 
 * <tt>:allow_blank</tt> - Blank values are not sent to scopes by default. Set to true to overwrite.
 
-== Default scope at the <tt>apply_scopes</tt> level
+== <tt>apply_scopes</tt> options
 
-You can also set default scopes at the <tt>apply_scopes</tt> level, overriding any scopes with the <tt>:default</tt> option and called when no scope is explicitly given in the params.
-This global default scope will override every default scope declared with the <tt>:default</tt> options of <tt>has_scope</tt> (see below).
+<tt>apply_scopes</tt> supports several options:
+
+* <tt>:hash</tt> - Override the default request's params hash.
+
+* <tt>:default</tt> - Override any scopes with the <tt>:default</tt> option and called when no scope is present in the given <tt>:hash</tt> (or request's params hash by default).
 
 Just call <tt>apply_scopes</tt> like this:
 
@@ -118,9 +121,11 @@ Rémy Coutable - http://github.com/rymai
 
 * Added <tt>apply_scopes</tt>'s <tt>:default</tt> option.
 
-* Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to has a real "default" behavior and not an "always" behavior.
+* Added <tt>apply_scopes</tt>'s <tt>:hash</tt> option.
 
-* Added <tt>has_scope</tt>'s <tt>:always</tt> option allowing the same behavior as the former <tt>has_scope</tt>'s <tt>:default</tt> option.
+* Changed <tt>has_scope</tt>'s <tt>:default</tt> option behavior, to has a real "default" behavior (called only when no scopes is present in the params) and not an "always" behavior (called when no value for this scope is present in the params).
+
+* Added <tt>has_scope</tt>'s <tt>:always</tt> option (you must set the <tt>:default</tt> option for this option to be applied) allowing the same behavior as the former <tt>has_scope</tt>'s <tt>:default</tt> option.
 
 == Bugs and Feedback
 
